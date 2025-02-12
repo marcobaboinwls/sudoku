@@ -17,6 +17,9 @@ jobs:
       - name: Enable Web
         run: flutter config --enable-web
         
+      - name: Clean
+        run: flutter clean
+        
       - name: Get dependencies
         run: flutter pub get
         
