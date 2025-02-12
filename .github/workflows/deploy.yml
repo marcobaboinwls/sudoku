@@ -21,7 +21,7 @@ jobs:
         run: flutter pub get
         
       - name: Build
-        run: flutter build web --base-href /your-repo-name/
+        run: flutter build web --release --base-href "/sudoku/"
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
