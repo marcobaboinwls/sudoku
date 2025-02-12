@@ -10,8 +10,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.16.0'
           channel: 'stable'
       
       - name: Enable Web
@@ -23,6 +26,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
         
+      - name: Verify directories
+        run: ls -R
+        
       - name: Build
         run: |
           flutter build web --release --base-href "/sudoku/"
@@ -32,4 +38,5 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web 
+          publish_dir: ./build/web
+          force_orphan: true 

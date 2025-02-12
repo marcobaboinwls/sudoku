@@ -5,6 +5,20 @@ import '../widgets/game_over_dialog.dart';
 import '../widgets/victory_dialog.dart';
 import 'dart:async';
 
+class Move {
+  final int row;
+  final int col;
+  final int? oldValue;
+  final int newValue;
+
+  Move({
+    required this.row,
+    required this.col,
+    required this.oldValue,
+    required this.newValue,
+  });
+}
+
 class GameState extends ChangeNotifier {
   static final navigatorKey = GlobalKey<NavigatorState>();
   static const initialHints = 90;
@@ -24,7 +38,9 @@ class GameState extends ChangeNotifier {
   int get remainingLives => 3 - _mistakes;
   int _highScore = 0;
   bool isNewHighScore = false;
-  int _currentDifficulty = 0;
+  final List<Move> _undoStack = [];
+
+  int get remainingHints => hints;
 
   String get timerText {
     int minutes = _seconds ~/ 60;
@@ -63,13 +79,12 @@ class GameState extends ChangeNotifier {
   }
 
   void setDifficulty(int difficulty) {
-    _currentDifficulty = difficulty;
     notifyListeners();
   }
 
   void startNewGame(int difficulty) {
     final generator = SudokuGenerator();
-    final result = generator.generate(_currentDifficulty);
+    final result = generator.generate(difficulty);
     board = result.puzzle;
     solution = result.solution;
     _mistakes = 0;
@@ -197,9 +212,32 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void useHint() {
+    if (remainingHints > 0 && selectedRow != null && selectedCol != null) {
+      if (board[selectedRow!][selectedCol!].value !=
+          solution[selectedRow!][selectedCol!]) {
+        // Save current state for undo
+        history.add(List.generate(
+          9,
+          (i) => List.generate(9, (j) => board[i][j].copyWith()),
+        ));
+
+        board[selectedRow!][selectedCol!] = SudokuCell(
+          value: solution[selectedRow!][selectedCol!],
+          isInitial: false,
+          isHint: true,
+        );
+
+        hints--;
+        notifyListeners();
+      }
+    }
+  }
+
   void undo() {
     if (history.isNotEmpty) {
-      board = history.removeLast();
+      final lastState = history.removeLast();
+      board = lastState;
       notifyListeners();
     }
   }
@@ -220,38 +258,6 @@ class GameState extends ChangeNotifier {
       board[row][col] = board[row][col].copyWith(value: null);
       notifyListeners();
     }
-  }
-
-  void useHint() {
-    if (selectedRow == null || selectedCol == null || hints <= 0) return;
-
-    final correctValue = solution[selectedRow!][selectedCol!];
-    // Check if cell is already correct
-    if (board[selectedRow!][selectedCol!].value == correctValue) return;
-
-    board[selectedRow!][selectedCol!] = SudokuCell(
-      value: correctValue,
-      isInitial: true,
-    );
-    hints--;
-
-    // Clean up notes after using hint
-    _cleanupNotes(selectedRow!, selectedCol!, correctValue);
-
-    if (_isBoardComplete()) {
-      pauseTimer();
-      isNewHighScore = _highScore == 0 || _seconds < _highScore;
-      if (isNewHighScore) {
-        _highScore = _seconds;
-      }
-      Future.microtask(() => showDialog(
-            context: navigatorKey.currentContext!,
-            barrierDismissible: false,
-            builder: (_) => const VictoryDialog(),
-          ));
-    }
-
-    notifyListeners();
   }
 
   void clearGame() {
