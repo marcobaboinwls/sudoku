@@ -20,23 +20,20 @@ jobs:
       - name: Enable Web
         run: flutter config --enable-web
         
-      - name: Clean
-        run: flutter clean
-        
       - name: Get dependencies
         run: flutter pub get
         
-      - name: Verify directories
-        run: ls -R
-        
       - name: Build
-        run: |
-          flutter build web --release --base-href "/sudoku/"
-          cp build/web/index.html build/web/404.html
+        run: flutter build web --release --base-href "/sudoku/"
           
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
-          force_orphan: true 
+          force_orphan: true
+
+      - name: Status check
+        run: |
+          echo "Deployment status:"
+          curl -s -o /dev/null -w "%{http_code}" https://marcobaboinwls.github.io/sudoku/ 

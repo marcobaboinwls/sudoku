@@ -21,7 +21,7 @@ class SudokuGenerator {
       9,
       (i) => List.generate(
         9,
-        (j) => SudokuCell(value: null),
+        (j) => const SudokuCell(value: null),
       ),
     );
 
