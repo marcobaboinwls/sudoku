@@ -4,6 +4,8 @@ import '../utils/sudoku_generator.dart';
 import '../widgets/game_over_dialog.dart';
 import '../widgets/victory_dialog.dart';
 import 'dart:async';
+import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Move {
   final int row;
@@ -38,21 +40,19 @@ class GameState extends ChangeNotifier {
   int get remainingLives => 3 - _mistakes;
   int _highScore = 0;
   bool isNewHighScore = false;
-  final List<Move> _undoStack = [];
+  final Random _random = Random();
+  bool _isGameWon = false;
+  bool get isGameWon => _isGameWon;
+  SharedPreferences? _prefs;
 
-  int get remainingHints => hints;
-
-  String get timerText {
-    int minutes = _seconds ~/ 60;
-    int remainingSeconds = _seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  GameState() {
+    _initPrefs();
   }
 
-  String get bestTimeText {
-    if (_highScore == 0) return '';
-    int minutes = _highScore ~/ 60;
-    int remainingSeconds = _highScore % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  Future<void> _initPrefs() async {
+    _prefs = await SharedPreferences.getInstance();
+    _highScore = _prefs?.getInt('best_time') ?? 0;
+    notifyListeners();
   }
 
   void startTimer() {
@@ -65,6 +65,7 @@ class GameState extends ChangeNotifier {
 
   void pauseTimer() {
     _timer?.cancel();
+    notifyListeners();
   }
 
   void resetTimer() {
@@ -72,14 +73,17 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  String get timerText {
+    int minutes = _seconds ~/ 60;
+    int remainingSeconds = _seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  void setDifficulty(int difficulty) {
-    notifyListeners();
+  String get bestTimeText {
+    if (_highScore == 0) return '';
+    int minutes = _highScore ~/ 60;
+    int remainingSeconds = _highScore % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   void startNewGame(int difficulty) {
@@ -98,6 +102,53 @@ class GameState extends ChangeNotifier {
     resetTimer();
     startTimer();
     notifyListeners();
+  }
+
+  void _handleVictory() {
+    pauseTimer();
+    isNewHighScore = _highScore == 0 || _seconds < _highScore;
+    if (isNewHighScore) {
+      _highScore = _seconds;
+      _prefs?.setInt('best_time', _highScore);
+    }
+    setGameWon();
+
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      Future.microtask(() {
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const VictoryDialog(),
+          );
+        }
+      });
+    }
+  }
+
+  void setGameWon() {
+    _isGameWon = true;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  int get remainingHints => hints;
+
+  void setDifficulty(int difficulty) {
+    notifyListeners();
+  }
+
+  void resumeGame() {
+    if (hasOngoingGame) {
+      startTimer();
+      notifyListeners();
+    }
   }
 
   bool _isBoardComplete() {
@@ -156,11 +207,6 @@ class GameState extends ChangeNotifier {
       notifyListeners();
       if (_mistakes >= 3) {
         clearGame();
-        Future.microtask(() => showDialog(
-              context: navigatorKey.currentContext!,
-              barrierDismissible: false,
-              builder: (_) => const GameOverDialog(),
-            ));
         return;
       }
     }
@@ -197,38 +243,44 @@ class GameState extends ChangeNotifier {
     }
 
     if (_isBoardComplete()) {
-      pauseTimer();
-      isNewHighScore = _highScore == 0 || _seconds < _highScore;
-      if (isNewHighScore) {
-        _highScore = _seconds;
-      }
-      Future.microtask(() => showDialog(
-            context: navigatorKey.currentContext!,
-            barrierDismissible: false,
-            builder: (_) => const VictoryDialog(),
-          ));
+      _handleVictory();
     }
 
     notifyListeners();
   }
 
   void useHint() {
-    if (remainingHints > 0 && selectedRow != null && selectedCol != null) {
-      if (board[selectedRow!][selectedCol!].value !=
-          solution[selectedRow!][selectedCol!]) {
-        // Save current state for undo
-        history.add(List.generate(
-          9,
-          (i) => List.generate(9, (j) => board[i][j].copyWith()),
-        ));
+    if (hints <= 0) return;
 
+    // Find a random unfilled cell if no cell is selected or selected cell is filled
+    if (selectedRow == null ||
+        selectedCol == null ||
+        board[selectedRow!][selectedCol!].value != null) {
+      final unfilledCells = <Point<int>>[];
+      for (int i = 0; i < 9; i++) {
+        for (int j = 0; j < 9; j++) {
+          if (board[i][j].value == null) {
+            unfilledCells.add(Point(i, j));
+          }
+        }
+      }
+      if (unfilledCells.isNotEmpty) {
+        final randomCell = unfilledCells[_random.nextInt(unfilledCells.length)];
+        selectedRow = randomCell.x;
+        selectedCol = randomCell.y;
+      } else {
+        return; // No unfilled cells left
+      }
+    }
+
+    if (selectedRow != null && selectedCol != null) {
+      if (board[selectedRow!][selectedCol!].value == null) {
         board[selectedRow!][selectedCol!] = SudokuCell(
           value: solution[selectedRow!][selectedCol!],
           isInitial: false,
-          isHint: true,
         );
-
         hints--;
+        _checkVictory();
         notifyListeners();
       }
     }
@@ -263,10 +315,30 @@ class GameState extends ChangeNotifier {
   void clearGame() {
     hasOngoingGame = false;
     board = [];
+    solution = [];
     pauseTimer();
     resetTimer();
+
+    final context = navigatorKey.currentContext;
+    if (context != null && _mistakes >= 3) {
+      Future.microtask(() {
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const GameOverDialog(),
+          );
+        }
+      });
+    }
     notifyListeners();
   }
 
   bool get canUndo => history.isNotEmpty;
+
+  void _checkVictory() {
+    if (_isBoardComplete()) {
+      _handleVictory();
+    }
+  }
 }

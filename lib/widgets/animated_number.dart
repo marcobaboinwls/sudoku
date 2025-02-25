@@ -89,7 +89,7 @@ class _AnimatedNumberState extends State<AnimatedNumber>
         return Text(
           '${widget.number}',
           style: TextStyle(
-            fontSize: 40,
+            fontSize: 28,
             fontWeight: FontWeight.w500,
             color: widget.isError
                 ? _colorAnimation.value

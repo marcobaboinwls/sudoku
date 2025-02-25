@@ -1,47 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'providers/game_state.dart';
-import 'providers/daily_challenges_state.dart';
-import 'widgets/sudoku_cell.dart';
-import 'widgets/number_pad.dart';
-import 'widgets/control_bar.dart';
-import 'widgets/difficulty_dialog.dart';
-import 'package:flutter/services.dart';
-import 'widgets/bottom_nav_bar.dart';
-
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]).then((_) {
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => GameState()),
-          ChangeNotifierProvider(create: (_) => DailyChallengesState()),
-        ],
-        child: const MainApp(),
-      ),
-    );
-  });
-}
-
-class MainApp extends StatelessWidget {
-  const MainApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: GameState.navigatorKey,
-      home: const HomeScreen(),
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.white,
-      ),
-    );
-  }
-}
+import '../providers/game_state.dart';
+import '../widgets/bottom_nav_bar.dart';
+import '../widgets/difficulty_dialog.dart';
+import 'game_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -104,8 +66,9 @@ class HomeScreen extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (context) =>
-                                          const GameScreen(isNewGame: false)),
+                                    builder: (context) =>
+                                        const GameScreen(isNewGame: false),
+                                  ),
                                 );
                               },
                               style: ElevatedButton.styleFrom(
@@ -136,18 +99,17 @@ class HomeScreen extends StatelessWidget {
                             pageBuilder:
                                 (context, animation, secondaryAnimation) =>
                                     const DifficultyDialog(),
-                            transitionDuration: const Duration(
-                                milliseconds: 300), // Reduced from 500ms
-                            reverseTransitionDuration: const Duration(
-                                milliseconds: 300), // Same for closing
+                            transitionDuration:
+                                const Duration(milliseconds: 300),
+                            reverseTransitionDuration:
+                                const Duration(milliseconds: 300),
                             opaque: false,
                             barrierDismissible: true,
                             barrierColor: Colors.black54,
                           ),
                         );
 
-                        if (difficulty != null) {
-                          if (!context.mounted) return;
+                        if (difficulty != null && context.mounted) {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (context) => GameScreen(
@@ -180,113 +142,6 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const BottomNavBar(currentIndex: 0),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class GameScreen extends StatelessWidget {
-  final bool isNewGame;
-  final int difficulty;
-
-  const GameScreen({
-    super.key,
-    this.isNewGame = true,
-    this.difficulty = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isNewGame) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<GameState>().startNewGame(difficulty);
-      });
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        centerTitle: true,
-        title: Consumer<GameState>(
-          builder: (context, gameState, _) => Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-                3,
-                (index) => Icon(
-                      Icons.favorite,
-                      color: index < gameState.remainingLives
-                          ? Colors.red
-                          : Colors.grey[400],
-                      size: 24,
-                    )),
-          ),
-        ),
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: Consumer<GameState>(
-                builder: (context, gameState, _) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.timer_outlined, size: 20),
-                    const SizedBox(width: 4),
-                    Text(
-                      gameState.timerText,
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.only(
-          left: 8.0,
-          right: 8.0,
-          top: 8.0,
-        ),
-        child: Column(
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.black,
-                    width: 1.0,
-                  ),
-                ),
-                child: Consumer<GameState>(
-                  builder: (context, gameState, _) => GridView.builder(
-                    padding: EdgeInsets.zero,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 9,
-                      childAspectRatio: 1,
-                    ),
-                    itemCount: 81,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      int row = index ~/ 9;
-                      int col = index % 9;
-                      return SudokuCell(row: row, col: col);
-                    },
-                  ),
-                ),
-              ),
-            ),
-            const Spacer(),
-            const ControlBar(),
-            const Spacer(),
-            const NumberPad(),
           ],
         ),
       ),
